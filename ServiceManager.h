@@ -4,9 +4,13 @@
 #include "DataStructures.h"
 #include <vector>
 #include <string>
+#include <fstream>
+#include <algorithm>
 
 class ServiceManager {
 private:
+    std::string dataFilePath;
+
     std::vector<Client> clients;
     std::vector<Car> cars;
     std::vector<Repair> repairs;
@@ -17,13 +21,23 @@ private:
     int nextRepairId;
     int nextPartId;
 
-    Client* findClientByIdInternal(int id);
-    Car* findCarByIdInternal(int id);
-    Repair* findRepairByIdInternal(int id);
-    Part* findPartByIdInternal(int id); // Додано
+    void loadDataFromFile();
+    void saveDataToFile() const;
+
+    int generateNextClientId();
+    int generateNextCarId();
+    int generateNextRepairId();
+    int generateNextPartId();
+
+    // find...ByIdInternal методи тепер const
+    const Client* findClientByIdInternal(int id) const;
+    const Car* findCarByIdInternal(int id) const;
+    const Repair* findRepairByIdInternal(int id) const; // Зробимо всі const для уніфікації
+    const Part* findPartByIdInternal(int id) const;     // Зробимо всі const для уніфікації
 
 public:
-    ServiceManager();
+    ServiceManager(const std::string& filePath = "autoservice_data.json");
+    ~ServiceManager();
 
     void addClient();
     void viewClients() const;
@@ -34,7 +48,7 @@ public:
     void updateRepairStatus();
     void addPart();
     void viewParts() const;
-    void orderPart(); // Додано
+    void orderPart();
     void viewFinancials() const;
     void viewStatistics() const;
 };

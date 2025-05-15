@@ -19,7 +19,7 @@ void Menu::displayMainMenu() const {
     std::cout << "--- Spare Parts ---\n";
     std::cout << "8. Add spare part to inventory\n";
     std::cout << "9. View parts inventory\n";
-    std::cout << "10. Order parts\n"; // Оновлено текст
+    std::cout << "10. Order parts\n";
     std::cout << "--- Accounting and Statistics ---\n";
     std::cout << "11. View financial report (basic)\n";
     std::cout << "12. View service statistics (basic)\n";
@@ -33,7 +33,6 @@ void Menu::run() {
     do {
         displayMainMenu();
         choice = getIntegerInput("Your choice: ");
-
         switch (choice) {
             case 1: serviceManager.addClient(); break;
             case 2: serviceManager.viewClients(); break;
@@ -44,17 +43,16 @@ void Menu::run() {
             case 7: serviceManager.updateRepairStatus(); break;
             case 8: serviceManager.addPart(); break;
             case 9: serviceManager.viewParts(); break;
-            case 10: serviceManager.orderPart(); break; // Оновлено виклик
+            case 10: serviceManager.orderPart(); break;
             case 11: serviceManager.viewFinancials(); break;
             case 12: serviceManager.viewStatistics(); break;
             case 0: std::cout << "Ends program.\n"; break;
             default: std::cout << "Wrong choice. Try again.\n"; break;
         }
-
         if (choice != 0) {
             std::cout << "\nPress Enter to continue...";
+            // std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Може знадобитися перед get()
             std::cin.get();
         }
-
     } while (choice != 0);
 }

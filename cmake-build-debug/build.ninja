@@ -73,6 +73,12 @@ build CMakeFiles/crmautoservice.dir/Utils.cpp.obj: CXX_COMPILER__crmautoservice_
   OBJECT_DIR = CMakeFiles\crmautoservice.dir
   OBJECT_FILE_DIR = CMakeFiles\crmautoservice.dir
 
+build CMakeFiles/crmautoservice.dir/DataStructures.cpp.obj: CXX_COMPILER__crmautoservice_unscanned_Debug C$:/Users/Sergio/CLionProjects/cursova/DataStructures.cpp || cmake_object_order_depends_target_crmautoservice
+  DEP_FILE = CMakeFiles\crmautoservice.dir\DataStructures.cpp.obj.d
+  FLAGS = -g -std=c++20 -fdiagnostics-color=always
+  OBJECT_DIR = CMakeFiles\crmautoservice.dir
+  OBJECT_FILE_DIR = CMakeFiles\crmautoservice.dir
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target crmautoservice
@@ -81,7 +87,7 @@ build CMakeFiles/crmautoservice.dir/Utils.cpp.obj: CXX_COMPILER__crmautoservice_
 #############################################
 # Link the executable crmautoservice.exe
 
-build crmautoservice.exe: CXX_EXECUTABLE_LINKER__crmautoservice_Debug CMakeFiles/crmautoservice.dir/main.cpp.obj CMakeFiles/crmautoservice.dir/Menu.cpp.obj CMakeFiles/crmautoservice.dir/ServiceManager.cpp.obj CMakeFiles/crmautoservice.dir/Utils.cpp.obj
+build crmautoservice.exe: CXX_EXECUTABLE_LINKER__crmautoservice_Debug CMakeFiles/crmautoservice.dir/main.cpp.obj CMakeFiles/crmautoservice.dir/Menu.cpp.obj CMakeFiles/crmautoservice.dir/ServiceManager.cpp.obj CMakeFiles/crmautoservice.dir/Utils.cpp.obj CMakeFiles/crmautoservice.dir/DataStructures.cpp.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\crmautoservice.dir

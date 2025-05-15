@@ -1,53 +1,113 @@
 #include "ServiceManager.h"
-#include "Utils.h" // Для getIntegerInput, getStringInput
+#include "Utils.h"
 #include <iostream>
-#include <iomanip> // Для setw, left, fixed, setprecision
-#include <limits>  // Для numeric_limits
+#include <iomanip>
+#include <limits>
 
-ServiceManager::ServiceManager()
-    : nextClientId(1), nextCarId(1), nextRepairId(1), nextPartId(1) {}
-
-Client* ServiceManager::findClientByIdInternal(int id) {
-    for (auto& client : clients) {
-        if (client.id == id) {
-            return &client;
-        }
-    }
-    return nullptr;
+ServiceManager::ServiceManager(const std::string& filePath)
+    : dataFilePath(filePath),
+      nextClientId(1), nextCarId(1), nextRepairId(1), nextPartId(1) {
+    loadDataFromFile();
 }
 
-Car* ServiceManager::findCarByIdInternal(int id) {
-    for (auto& car : cars) {
-        if (car.id == id) {
-            return &car;
-        }
-    }
-    return nullptr;
+ServiceManager::~ServiceManager() {
+    saveDataToFile();
 }
 
-Repair* ServiceManager::findRepairByIdInternal(int id) {
-    for (auto& repair : repairs) {
-        if (repair.id == id) {
-            return &repair;
-        }
+void ServiceManager::loadDataFromFile() {
+    std::ifstream file(dataFilePath);
+    if (!file.is_open()) {
+        std::cout << "Info: Data file '" << dataFilePath << "' not found. Starting with empty data." << std::endl;
+        nextClientId = 1; nextCarId = 1; nextRepairId = 1; nextPartId = 1;
+        return;
     }
-    return nullptr;
+    try {
+        json data;
+        file >> data;
+        clients = data.value("clients", std::vector<Client>{});
+        cars = data.value("cars", std::vector<Car>{});
+        repairs = data.value("repairs", std::vector<Repair>{});
+        partsInventory = data.value("partsInventory", std::vector<Part>{});
+
+        if (!clients.empty()) {
+            nextClientId = std::max_element(clients.begin(), clients.end(),
+                [](const Client& a, const Client& b) { return a.id < b.id; })->id + 1;
+        } else { nextClientId = 1; }
+
+        if (!cars.empty()) {
+            nextCarId = std::max_element(cars.begin(), cars.end(),
+                [](const Car& a, const Car& b) { return a.id < b.id; })->id + 1;
+        } else { nextCarId = 1; }
+
+        if (!repairs.empty()) {
+            nextRepairId = std::max_element(repairs.begin(), repairs.end(),
+                [](const Repair& a, const Repair& b) { return a.id < b.id; })->id + 1;
+        } else { nextRepairId = 1; }
+
+        if (!partsInventory.empty()) {
+            nextPartId = std::max_element(partsInventory.begin(), partsInventory.end(),
+                [](const Part& a, const Part& b) { return a.id < b.id; })->id + 1;
+        } else { nextPartId = 1; }
+        std::cout << "Info: Data loaded successfully from " << dataFilePath << std::endl;
+    } catch (const json::parse_error& e) {
+        std::cerr << "Error parsing JSON file '" << dataFilePath << "': " << e.what() << std::endl;
+        clients.clear(); cars.clear(); repairs.clear(); partsInventory.clear();
+        nextClientId = 1; nextCarId = 1; nextRepairId = 1; nextPartId = 1;
+    } catch (const json::exception& e) {
+        std::cerr << "JSON library error during load: " << e.what() << std::endl;
+        clients.clear(); cars.clear(); repairs.clear(); partsInventory.clear();
+        nextClientId = 1; nextCarId = 1; nextRepairId = 1; nextPartId = 1;
+    }
+    file.close();
 }
 
-Part* ServiceManager::findPartByIdInternal(int id) {
-    for (auto& part : partsInventory) {
-        if (part.id == id) {
-            return &part; //
-        }
+void ServiceManager::saveDataToFile() const {
+    json data;
+    data["clients"] = clients;
+    data["cars"] = cars;
+    data["repairs"] = repairs;
+    data["partsInventory"] = partsInventory;
+
+    std::ofstream file(dataFilePath);
+    if (!file.is_open()) {
+        std::cerr << "Error: Could not open file '" << dataFilePath << "' for saving." << std::endl;
+        return;
     }
-    return nullptr;
+    try {
+        file << std::setw(4) << data << std::endl;
+        std::cout << "Info: Data saved successfully to " << dataFilePath << std::endl;
+    } catch (const json::exception& e) {
+        std::cerr << "JSON library error during save: " << e.what() << std::endl;
+    }
+    file.close();
 }
 
+int ServiceManager::generateNextClientId() { return nextClientId++; }
+int ServiceManager::generateNextCarId() { return nextCarId++; }
+int ServiceManager::generateNextRepairId() { return nextRepairId++; }
+int ServiceManager::generateNextPartId() { return nextPartId++; }
+
+const Client* ServiceManager::findClientByIdInternal(int id) const {
+    for (const auto& client : clients) if (client.id == id) return &client;
+    return nullptr;
+}
+const Car* ServiceManager::findCarByIdInternal(int id) const {
+    for (const auto& car : cars) if (car.id == id) return &car;
+    return nullptr;
+}
+const Repair* ServiceManager::findRepairByIdInternal(int id) const {
+    for (const auto& repair : repairs) if (repair.id == id) return &repair;
+    return nullptr;
+}
+const Part* ServiceManager::findPartByIdInternal(int id) const {
+    for (const auto& part : partsInventory) if (part.id == id) return &part;
+    return nullptr;
+}
 
 void ServiceManager::addClient() {
     std::cout << "\n--- Adding new customer ---\n";
     Client newClient;
-    newClient.id = nextClientId++;
+    newClient.id = generateNextClientId();
     newClient.name = getStringInput("Customer's name: ");
     newClient.phone = getStringInput("Phone number: ");
     clients.push_back(newClient);
@@ -76,18 +136,23 @@ void ServiceManager::addCar() {
         std::cout << "First you need to add at least one client!\n";
         return;
     }
-
     viewClients();
     int ownerId = getIntegerInput("Enter the vehicle owner ID: ");
 
-    Client* owner = findClientByIdInternal(ownerId);
+    Client* owner = nullptr; // Потрібен не-const для модифікації carIds
+    for(auto& c : clients) {
+        if (c.id == ownerId) {
+            owner = &c;
+            break;
+        }
+    }
     if (!owner) {
         std::cout << "Error: Customer with ID " << ownerId << " not found.\n";
         return;
     }
 
     Car newCar;
-    newCar.id = nextCarId++;
+    newCar.id = generateNextCarId();
     newCar.ownerId = ownerId;
     newCar.make = getStringInput("Brand: ");
     newCar.model = getStringInput("Model: ");
@@ -99,8 +164,7 @@ void ServiceManager::addCar() {
     newCar.vin = vin_input.empty() ? "N/A" : vin_input;
 
     cars.push_back(newCar);
-    owner->carIds.push_back(newCar.id);
-
+    owner->carIds.push_back(newCar.id); // Модифікація
     std::cout << "Car " << newCar.make << " " << newCar.model << " (ID: " << newCar.id << ") successfully added for customer '" << owner->name << "'.\n";
 }
 
@@ -114,13 +178,7 @@ void ServiceManager::viewCars() const {
               << std::setw(8) << "Year" << std::setw(15) << "Number plate" << std::setw(20) << "Owner (ID)" << std::setw(20) << "Owner (Name)" << std::endl;
     std::cout << std::string(100, '-') << std::endl;
     for (const auto& car : cars) {
-        const Client* owner = nullptr;
-        for(const auto& c : clients){
-            if(c.id == car.ownerId){
-                owner = &c;
-                break;
-            }
-        }
+        const Client* owner = findClientByIdInternal(car.ownerId); // Використовуємо const find
         std::string ownerName = owner ? owner->name : "Unknown";
         std::cout << std::left << std::setw(5) << car.id
                   << std::setw(15) << car.make
@@ -139,23 +197,21 @@ void ServiceManager::scheduleRepair() {
         std::cout << "There are no registered vehicles to schedule repairs.\n";
         return;
     }
-
     viewCars();
     int carId = getIntegerInput("Enter car's ID for planning renovation ");
-
-    Car* car = findCarByIdInternal(carId);
+    const Car* car = findCarByIdInternal(carId); // const find
     if (!car) {
         std::cout << "Error: Car with ID " << carId << " not found.\n";
         return;
     }
-    Client* client = findClientByIdInternal(car->ownerId);
+    const Client* client = findClientByIdInternal(car->ownerId); // const find
     if (!client) {
         std::cout << "Error: Unable to find owner for auto ID " << carId << ". Check data.\n";
         return;
     }
 
     Repair newRepair;
-    newRepair.id = nextRepairId++;
+    newRepair.id = generateNextRepairId();
     newRepair.carId = carId;
     newRepair.clientId = car->ownerId;
     newRepair.description = getStringInput("Problem description / planned repairs: ");
@@ -163,9 +219,7 @@ void ServiceManager::scheduleRepair() {
     newRepair.status = RepairStatus::SCHEDULED;
     newRepair.estimatedCost = 0.0;
     newRepair.finalCost = 0.0;
-
     repairs.push_back(newRepair);
-
     std::cout << "Repair (ID: " << newRepair.id << ") for car " << car->make << " " << car->model
               << " (Owner: " << client->name << ") scheduled for " << newRepair.scheduledDate << ".\n";
 }
@@ -176,21 +230,14 @@ void ServiceManager::viewRepairs() const {
         std::cout << "Repair list empty!\n";
         return;
     }
-
     std::cout << std::left << std::setw(5) << "ID" << std::setw(15) << "Car (ID)" << std::setw(25) << "Car (Brand/Number)" << std::setw(20) << "Client (Name)"
               << std::setw(20) << "Date" << std::setw(20) << "Status" << std::setw(40) << "Description" << std::endl;
     std::cout << std::string(150, '-') << std::endl;
-
     for (const auto& repair : repairs) {
-        const Car* car = nullptr;
-        for(const auto& c_ : cars) if(c_.id == repair.carId) { car = &c_; break; }
-
-        const Client* client = nullptr;
-        for(const auto& cl_ : clients) if(cl_.id == repair.clientId) { client = &cl_; break; }
-
+        const Car* car = findCarByIdInternal(repair.carId); // const find
+        const Client* client = findClientByIdInternal(repair.clientId); // const find
         std::string carInfo = car ? (car->make + " " + car->licensePlate) : "Unknown";
         std::string clientName = client ? client->name : "Unknown";
-
         std::cout << std::left << std::setw(5) << repair.id
                   << std::setw(15) << repair.carId
                   << std::setw(25) << carInfo
@@ -209,27 +256,26 @@ void ServiceManager::updateRepairStatus() {
         std::cout << "There are no repairs to update the status.\n";
         return;
     }
-
     viewRepairs();
     int repairId = getIntegerInput("Enter repair ID for update the status: ");
 
-    Repair* repair = findRepairByIdInternal(repairId);
-    if (!repair) {
+    Repair* repairToUpdate = nullptr; // Потрібен не-const для модифікації
+    for(auto& r : repairs) {
+        if (r.id == repairId) {
+            repairToUpdate = &r;
+            break;
+        }
+    }
+    if (!repairToUpdate) {
         std::cout << "Error: Repair with ID " << repairId << " not found.\n";
         return;
     }
 
-    std::cout << "Current status: " << statusToString(repair->status) << std::endl;
-    std::cout << "Choose new status\n";
-    std::cout << "1. Scheduled\n";
-    std::cout << "2. In progress\n";
-    std::cout << "3. Waiting parts\n";
-    std::cout << "4. Finished\n";
-    std::cout << "5. Canceled\n";
+    std::cout << "Current status: " << statusToString(repairToUpdate->status) << std::endl;
+    std::cout << "Choose new status\n1. Scheduled\n2. In progress\n3. Waiting parts\n4. Finished\n5. Canceled\n";
     int choice = getIntegerInput("Your choice: ");
-
-    RepairStatus newStatus;
-    double finalCost = repair->finalCost;
+    RepairStatus newStatus = repairToUpdate->status;
+    double finalCost = repairToUpdate->finalCost;
 
     switch (choice) {
         case 1: newStatus = RepairStatus::SCHEDULED; break;
@@ -246,23 +292,20 @@ void ServiceManager::updateRepairStatus() {
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             break;
         case 5: newStatus = RepairStatus::CANCELLED; break;
-        default:
-            std::cout << "Wrong choice status.\n";
-            return;
+        default: std::cout << "Wrong choice status.\n"; return;
     }
-
-    repair->status = newStatus;
-    repair->finalCost = finalCost;
+    repairToUpdate->status = newStatus;
+    repairToUpdate->finalCost = finalCost;
     std::cout << "Repair status ID " << repairId << " updated to '" << statusToString(newStatus) << "'.\n";
     if (newStatus == RepairStatus::COMPLETED) {
-        std::cout << "Final cost set: " << std::fixed << std::setprecision(2) << repair->finalCost << std::endl;
+        std::cout << "Final cost set: " << std::fixed << std::setprecision(2) << repairToUpdate->finalCost << std::endl;
     }
 }
 
 void ServiceManager::addPart() {
     std::cout << "\n--- Adding parts on warehouse ---\n";
     Part newPart;
-    newPart.id = nextPartId++;
+    newPart.id = generateNextPartId();
     newPart.name = getStringInput("Name of the part: ");
     newPart.article = getStringInput("Article");
     newPart.quantity = getIntegerInput("Quantity in stock: ");
@@ -275,7 +318,6 @@ void ServiceManager::addPart() {
     }
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     newPart.price = price;
-
     partsInventory.push_back(newPart);
     std::cout << "Part '" << newPart.name << "' (ID: " << newPart.id << ") successefuly added to warehouse.\n";
 }
@@ -307,50 +349,46 @@ void ServiceManager::orderPart() {
         std::cout << "Parts inventory is empty. Add parts before ordering.\n";
         return;
     }
-
-    viewParts(); // Показати список запчастин для вибору
-
+    viewParts();
     int partId = getIntegerInput("Enter ID of the part to order: ");
-    Part* partToOrder = findPartByIdInternal(partId);
 
+    Part* partToOrder = nullptr; // Потрібен не-const для модифікації
+    for(auto& p : partsInventory) {
+        if (p.id == partId) {
+            partToOrder = &p;
+            break;
+        }
+    }
     if (!partToOrder) {
         std::cout << "Error: Part with ID " << partId << " not found.\n";
         return;
     }
 
-    std::cout << "Selected part: " << partToOrder->name
-              << " (Article: " << partToOrder->article
+    std::cout << "Selected part: " << partToOrder->name << " (Article: " << partToOrder->article
               << ", Current stock: " << partToOrder->quantity << ")\n";
-
     int quantityOrdered = getIntegerInput("Enter quantity to order: ");
-
     if (quantityOrdered <= 0) {
         std::cout << "Error: Order quantity must be a positive number.\n";
         return;
     }
-
-    partToOrder->quantity += quantityOrdered;
-
+    partToOrder->quantity += quantityOrdered; // Модифікація
     std::cout << "Successfully ordered " << quantityOrdered << " units of '" << partToOrder->name << "'.\n";
     std::cout << "New stock quantity: " << partToOrder->quantity << std::endl;
     std::cout << "Price per unit: " << std::fixed << std::setprecision(2) << partToOrder->price << std::endl;
-    std::cout << "Total cost of this order: " << std::fixed << std::setprecision(2) << (partToOrder->price * quantityOrdered) << " UAH." << std::endl;
+    std::cout << "Total cost of this order: " << (partToOrder->price * quantityOrdered) << " UAH." << std::endl;
     std::cout << std::defaultfloat;
 }
-
 
 void ServiceManager::viewFinancials() const {
     std::cout << "\n--- Financial account (basic) ---\n";
     double totalCompletedRevenue = 0.0;
     int completedCount = 0;
-
     for(const auto& repair : repairs) {
         if (repair.status == RepairStatus::COMPLETED) {
             totalCompletedRevenue += repair.finalCost;
             completedCount++;
         }
     }
-
     if (completedCount > 0) {
         std::cout << "Total amount for completed repairs: " << std::fixed << std::setprecision(2) << totalCompletedRevenue << " UAH.\n";
         std::cout << "Number of completed repairs: " << completedCount << std::endl;
@@ -361,29 +399,36 @@ void ServiceManager::viewFinancials() const {
 
 void ServiceManager::viewStatistics() const {
     std::cout << "\n--- Service Statistics (Basic) ---\n";
-    if (repairs.empty()) {
+    if (repairs.empty() && clients.empty() && cars.empty() && partsInventory.empty()) {
         std::cout << "There is no data for stats\n";
         return;
     }
+    std::cout << "Total clients: " << clients.size() << std::endl;
+    std::cout << "Total cars: " << cars.size() << std::endl;
+    std::cout << "Total parts in inventory types: " << partsInventory.size() << std::endl;
 
-    int scheduled = 0, inProgress = 0, waiting = 0, completed = 0, cancelled = 0;
-    for(const auto& repair : repairs) {
-        switch (repair.status) {
-            case RepairStatus::SCHEDULED: scheduled++; break;
-            case RepairStatus::IN_PROGRESS: inProgress++; break;
-            case RepairStatus::WAITING_PARTS: waiting++; break;
-            case RepairStatus::COMPLETED: completed++; break;
-            case RepairStatus::CANCELLED: cancelled++; break;
+    if (!repairs.empty()) {
+        int scheduled = 0, inProgress = 0, waiting = 0, completed = 0, cancelled = 0;
+        for(const auto& repair : repairs) {
+            switch (repair.status) {
+                case RepairStatus::SCHEDULED: scheduled++; break;
+                case RepairStatus::IN_PROGRESS: inProgress++; break;
+                case RepairStatus::WAITING_PARTS: waiting++; break;
+                case RepairStatus::COMPLETED: completed++; break;
+                case RepairStatus::CANCELLED: cancelled++; break;
+            }
         }
+        std::cout << "Total number of repairs: " << repairs.size() << std::endl;
+        std::cout << "----------------------------------\n";
+        std::cout << "Status              | Count\n";
+        std::cout << "----------------------------------\n";
+        std::cout << std::left << std::setw(19) << "Scheduled" << "| " << scheduled << std::endl;
+        std::cout << std::left << std::setw(19) << "In Progress" << "| " << inProgress << std::endl;
+        std::cout << std::left << std::setw(19) << "Waiting for Parts" << "| " << waiting << std::endl;
+        std::cout << std::left << std::setw(19) << "Completed" << "| " << completed << std::endl;
+        std::cout << std::left << std::setw(19) << "Cancelled" << "| " << cancelled << std::endl;
+        std::cout << "----------------------------------\n";
+    } else {
+        std::cout << "No repairs recorded." << std::endl;
     }
-    std::cout << "Total number of repairs: " << repairs.size() << std::endl;
-    std::cout << "----------------------------------\n";
-    std::cout << "Status              | Count\n";
-    std::cout << "----------------------------------\n";
-    std::cout << std::left << std::setw(19) << "Scheduled" << "| " << scheduled << std::endl;
-    std::cout << std::left << std::setw(19) << "In Progress" << "| " << inProgress << std::endl;
-    std::cout << std::left << std::setw(19) << "Waiting for Parts" << "| " << waiting << std::endl;
-    std::cout << std::left << std::setw(19) << "Completed" << "| " << completed << std::endl;
-    std::cout << std::left << std::setw(19) << "Cancelled" << "| " << cancelled << std::endl;
-    std::cout << "----------------------------------\n";
 }

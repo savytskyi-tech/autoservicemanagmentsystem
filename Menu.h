@@ -1,15 +1,12 @@
 #ifndef MENU_H
 #define MENU_H
 
-#include "ServiceManager.h" // Потрібен для взаємодії з ServiceManager
+#include "ServiceManager.h"
 
 class Menu {
 private:
-    ServiceManager& serviceManager; // Посилання на об'єкт ServiceManager
-
+    ServiceManager& serviceManager;
     void displayMainMenu() const;
-    void processUserInput();
-
 public:
     Menu(ServiceManager& sm);
     void run();
