@@ -37,7 +37,7 @@ Repair* ServiceManager::findRepairByIdInternal(int id) {
 Part* ServiceManager::findPartByIdInternal(int id) {
     for (auto& part : partsInventory) {
         if (part.id == id) {
-            return &part; // ВИПРАВЛЕНО: повертаємо адресу
+            return &part; //
         }
     }
     return nullptr;
